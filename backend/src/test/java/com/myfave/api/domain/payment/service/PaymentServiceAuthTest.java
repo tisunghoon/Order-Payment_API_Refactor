@@ -6,14 +6,18 @@ import com.myfave.api.domain.order.repository.OrderItemRepository;
 import com.myfave.api.domain.order.repository.OrderRepository;
 import com.myfave.api.domain.payment.provider.PaymentProvider;
 import com.myfave.api.domain.payment.repository.PaymentAttemptRepository;
+import com.myfave.api.domain.product.repository.ProductRepository;
 import com.myfave.api.domain.payment.repository.PaymentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.myfave.api.domain.user.repository.UserRepository;
 import com.myfave.api.global.error.CustomException;
+import com.myfave.api.global.lock.DistributedLockManager;
 import com.myfave.api.global.error.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,7 +36,11 @@ class PaymentServiceAuthTest {
     @Mock private CouponRepository couponRepository;
     @Mock private CouponService couponService;
     @Mock private UserRepository userRepository;
+    @Mock private ProductRepository productRepository;
     @Mock private PaymentProvider paymentProvider;
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS) private MeterRegistry meterRegistry;
+    @Mock private DistributedLockManager lockManager;
+    @Mock private PaymentService self;
 
     @Test
     @DisplayName("preparePayment: userId null → AUTH_UNAUTHORIZED")

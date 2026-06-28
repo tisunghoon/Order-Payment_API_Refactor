@@ -34,8 +34,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     // 상품 상세 조회 (Soft Delete 제외)
     Optional<Product> findByProductIdAndDeletedAtIsNull(Long productId);
 
-    // 재고 차감용 - PESSIMISTIC_WRITE 락. 매진 경쟁(시나리오 D) over-selling 방지.
-    // 데드락 회피를 위해 product_id ASC 정렬 후 사용(여러 상품 동시 처리 시).
+    // Redis 분산락 도입으로 더 이상 사용하지 않음 — 후속 PR에서 완전 제거 예정.
+    @Deprecated
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Product p where p.productId = :productId and p.deletedAt is null")
     Optional<Product> findByIdForUpdate(@Param("productId") Long productId);

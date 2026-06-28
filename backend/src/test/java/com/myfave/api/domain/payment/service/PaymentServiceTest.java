@@ -18,10 +18,14 @@ import com.myfave.api.domain.payment.entity.PaymentMethod;
 import com.myfave.api.domain.payment.entity.PaymentStatus;
 import com.myfave.api.domain.payment.provider.PaymentProvider;
 import com.myfave.api.domain.payment.repository.PaymentAttemptRepository;
+import com.myfave.api.domain.product.entity.Product;
+import com.myfave.api.domain.product.repository.ProductRepository;
 import com.myfave.api.domain.payment.repository.PaymentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.myfave.api.domain.user.entity.User;
 import com.myfave.api.domain.user.repository.UserRepository;
 import com.myfave.api.global.error.CustomException;
+import com.myfave.api.global.lock.DistributedLockManager;
 import com.myfave.api.global.error.ErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +33,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -58,7 +63,10 @@ class PaymentServiceTest {
     @Mock private CouponRepository couponRepository;
     @Mock private CouponService couponService;
     @Mock private UserRepository userRepository;
+    @Mock private ProductRepository productRepository;
     @Mock private PaymentProvider paymentProvider;
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS) private MeterRegistry meterRegistry;
+    @Mock private DistributedLockManager lockManager;
     @Mock private PaymentService self;
 
     @BeforeEach
@@ -316,6 +324,7 @@ class PaymentServiceTest {
 
         OrderItem item = mock(OrderItem.class);
         when(item.getPrice()).thenReturn(1000); // 상품 금액 1,000원 → 1000 + 3000 - 50000 = -46000
+        when(item.getProduct()).thenReturn(mock(Product.class));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
@@ -343,6 +352,7 @@ class PaymentServiceTest {
 
         OrderItem item = mock(OrderItem.class);
         when(item.getPrice()).thenReturn(10000);
+        when(item.getProduct()).thenReturn(mock(Product.class));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));

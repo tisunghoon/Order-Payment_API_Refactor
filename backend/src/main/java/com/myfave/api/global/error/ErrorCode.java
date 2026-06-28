@@ -41,6 +41,7 @@ public enum ErrorCode {
     PRODUCT_STOCK_INSUFFICIENT(409, "재고 수량 부족"),
     PRODUCT_STOCK_INVALID(400, "유효하지 않은 재고 수량"),
     PRODUCT_STOCK_RESTORE_OVERFLOW(409, "재고 복구 한계 초과"),
+    STOCK_LOCK_ACQUIRE_FAILED(409, "재고 처리 락 획득 실패 — 잠시 후 다시 시도해 주세요"),
 
     // 장바구니
     CART_ALREADY_EXISTS(409, "이미 장바구니에 있는 상품"),

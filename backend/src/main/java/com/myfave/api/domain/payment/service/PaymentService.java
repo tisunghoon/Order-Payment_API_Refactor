@@ -30,6 +30,8 @@ import com.myfave.api.domain.user.entity.User;
 import com.myfave.api.domain.user.repository.UserRepository;
 import com.myfave.api.global.error.CustomException;
 import com.myfave.api.global.error.ErrorCode;
+import com.myfave.api.global.lock.DistributedLockManager;
+import com.myfave.api.global.lock.LockKeys;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -71,9 +72,16 @@ public class PaymentService {
     private final ProductRepository productRepository;
     private final PaymentProvider paymentProvider;
     private final MeterRegistry meterRegistry;
+    private final DistributedLockManager lockManager;
 
     @Lazy
     private final PaymentService self;
+
+    @Value("${myfave.lock.product-stock.wait-ms:3000}")
+    private long lockWaitMs;
+
+    @Value("${myfave.lock.product-stock.lease-ms:10000}")
+    private long lockLeaseMs;
 
     @Value("${portone.store-id}")
     private String storeId;
@@ -179,7 +187,7 @@ public class PaymentService {
         return PaymentPrepareResponse.of(payment, storeId, resolveChannelKey(request.getPaymentMethod()));
     }
 
-    public record ConfirmContext(Long paymentId, int totalPaymentPrice) {}
+    public record ConfirmContext(Long paymentId, int totalPaymentPrice, List<Long> sortedProductIds) {}
 
     // 2. 결제 승인 (오케스트레이터: 외부 호출은 트랜잭션 밖) ──────────────────────
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -229,7 +237,9 @@ public class PaymentService {
 
             // 4. 결제 승인 직전 재고 확정 차감 — over-selling 방지 + 보상 트랜잭션
             try {
-                self.decreaseStockForConfirm(ctx.paymentId());
+                lockManager.executeWithLock(
+                        LockKeys.productStocks(ctx.sortedProductIds()), lockWaitMs, lockLeaseMs,
+                        () -> self.decreaseStockForConfirm(ctx.paymentId()));
             } catch (CustomException e) {
                 meterRegistry.counter("myfave.payment.stock.deduct.failed",
                         "reason", e.getErrorCode().name()).increment();
@@ -266,38 +276,23 @@ public class PaymentService {
         }
     }
 
-    // 결제 승인 직전 재고 확정 차감 — over-selling 방지를 위해 PESSIMISTIC_WRITE 락 사용
+    // 결제 승인 직전 재고 확정 차감 — Redis 분산락은 오케스트레이터(confirmPayment)에서 획득
     @Transactional
     public void decreaseStockForConfirm(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PAYMENT_NOT_FOUND));
 
         List<OrderItem> orderItems = orderItemRepository.findByOrder(payment.getOrder());
-
-        // 데드락 회피: productId ASC 정렬 후 순차 락 획득
         List<Long> sortedProductIds = orderItems.stream()
                 .map(item -> item.getProduct().getProductId())
                 .sorted(Comparator.naturalOrder())
                 .toList();
 
         for (Long pid : sortedProductIds) {
-            // 락 획득 대기시간 측정 — PESSIMISTIC_WRITE 경합 강도 시나리오 D 검증
-            Timer.Sample lockSample = Timer.start(meterRegistry);
-            Product product;
+            Product product = productRepository.findByProductIdAndDeletedAtIsNull(pid)
+                    .orElseThrow(() -> new CustomException(ErrorCode.PRODUCT_NOT_FOUND));
             try {
-                product = productRepository.findByIdForUpdate(pid)
-                        .orElseThrow(() -> new CustomException(ErrorCode.PRODUCT_NOT_FOUND));
-            } catch (PessimisticLockingFailureException e) {
-                // 데드락/락 타임아웃 (Hibernate가 Spring DataAccessException으로 변환).
-                // PostgreSQL deadlock_timeout(기본 1s) 초과나 40P01 발생 시 진입.
-                meterRegistry.counter("myfave.stock.deadlock").increment();
-                meterRegistry.counter("myfave.stock.deduct.attempt", "outcome", "deadlock").increment();
-                throw e;
-            } finally {
-                lockSample.stop(Timer.builder("myfave.stock.lock.wait.duration").register(meterRegistry));
-            }
-            try {
-                product.decreaseStock(1); // stockQuantity-- + isSoldout 동기화
+                product.decreaseStock(1);
                 meterRegistry.counter("myfave.stock.deduct.attempt", "outcome", "success").increment();
             } catch (CustomException e) {
                 String outcome = ErrorCode.PRODUCT_SOLD_OUT.equals(e.getErrorCode()) ? "sold_out" : "insufficient";
@@ -319,7 +314,11 @@ public class PaymentService {
                 payment.getPaymentStatus() != PaymentStatus.AUTHORIZED) {
             throw new CustomException(ErrorCode.PAYMENT_INVALID_STATUS);
         }
-        return new ConfirmContext(payment.getPaymentId(), payment.getTotalPaymentPrice());
+        List<Long> sortedProductIds = orderItemRepository.findByOrder(payment.getOrder()).stream()
+                .map(item -> item.getProduct().getProductId())
+                .sorted(Comparator.naturalOrder())
+                .toList();
+        return new ConfirmContext(payment.getPaymentId(), payment.getTotalPaymentPrice(), sortedProductIds);
     }
 
     // 최종 성공 반영
@@ -378,7 +377,7 @@ public class PaymentService {
         return PaymentResponse.from(payment);
     }
 
-    public record CancelContext(Long paymentId, String pgTransactionId, int cancelAmount, boolean fullCancel) {}
+    public record CancelContext(Long paymentId, String pgTransactionId, int cancelAmount, boolean fullCancel, List<Long> sortedProductIds) {}
 
     // 4. 결제 취소/환불 (오케스트레이터: 외부 호출은 트랜잭션 밖) ─────────────────
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -396,6 +395,11 @@ public class PaymentService {
         // applyCancelResult 가 PAYMENT_STOCK_RESTORE_FAILED 로 롤백되면
         // 독립 트랜잭션(REQUIRES_NEW)으로 Payment/Order CANCELLED 확정 + 운영 복구 단서를 영속화한다.
         try {
+            if (ctx.fullCancel()) {
+                return lockManager.executeWithLock(
+                        LockKeys.productStocks(ctx.sortedProductIds()), lockWaitMs, lockLeaseMs,
+                        () -> self.applyCancelResult(ctx.paymentId(), ctx.cancelAmount(), ctx.fullCancel(), userId));
+            }
             return self.applyCancelResult(ctx.paymentId(), ctx.cancelAmount(), ctx.fullCancel(), userId);
         } catch (CustomException e) {
             if (ctx.fullCancel() && e.getErrorCode() == ErrorCode.PAYMENT_STOCK_RESTORE_FAILED) {
@@ -446,7 +450,13 @@ public class PaymentService {
             throw new CustomException(ErrorCode.PAYMENT_INVALID_STATUS);
         }
 
-        return new CancelContext(payment.getPaymentId(), payment.getPgTransactionId(), cancelAmount, fullCancel);
+        List<Long> sortedProductIds = fullCancel
+                ? orderItemRepository.findByOrder(payment.getOrder()).stream()
+                        .map(item -> item.getProduct().getProductId())
+                        .sorted(Comparator.naturalOrder())
+                        .toList()
+                : List.of();
+        return new CancelContext(payment.getPaymentId(), payment.getPgTransactionId(), cancelAmount, fullCancel, sortedProductIds);
     }
 
     // 환불
@@ -460,17 +470,12 @@ public class PaymentService {
             payment.cancel();
             payment.getOrder().refund();
 
-            // 전액 취소 보상: OrderItem 순회하며 재고 복구 — PESSIMISTIC_WRITE 락 적용 (lost update 방지).
-            // 데드락 회피: decreaseStockForConfirm과 동일하게 productId ASC 정렬 후 순차 락 획득.
+            // 전액 취소 보상: OrderItem 순회하며 재고 복구 — Redis 분산락은 오케스트레이터(cancelPayment)에서 획득.
             // increaseStock 실패(오버플로우 등)는 데이터 부정합이므로 PAYMENT_STOCK_RESTORE_FAILED로
             // 명시적 노출하여 운영 알람 대상이 되도록 함. 부분 취소는 OrderItem 단위가 아니므로 복구 제외.
             List<OrderItem> orderItems = orderItemRepository.findByOrder(payment.getOrder());
-            List<Long> sortedProductIds = orderItems.stream()
-                    .map(item -> item.getProduct().getProductId())
-                    .sorted(Comparator.naturalOrder())
-                    .toList();
-            for (Long pid : sortedProductIds) {
-                Product product = productRepository.findByIdForUpdate(pid)
+            for (OrderItem item : orderItems) {
+                Product product = productRepository.findByProductIdAndDeletedAtIsNull(item.getProduct().getProductId())
                         .orElseThrow(() -> new CustomException(ErrorCode.PRODUCT_NOT_FOUND));
                 try {
                     product.increaseStock(1);

@@ -37,6 +37,9 @@ dependencies {
     // Redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+    // Redis 분산락 (Redisson — pub/sub 대기 + watchdog 자동 갱신)
+    implementation 'org.redisson:redisson-spring-boot-starter:3.37.0'
+
     // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'

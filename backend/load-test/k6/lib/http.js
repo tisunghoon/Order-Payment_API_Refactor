@@ -33,6 +33,7 @@ export function post(path, token, body, params = {}) {
 }
 
 // 상품 10개 중 VU 인덱스 기반으로 productId 매핑 (시나리오 D 매진 경쟁용 — 동일 상품에 30명씩 몰림)
+// 시드 DB의 실제 상품 product_id는 2~11 범위(1번은 없음) → 2~11로 매핑. reset.sql과 동일 범위 유지.
 export function pickProductIdByVu(vuId) {
-  return ((vuId - 1) % 10) + 1;
+  return ((vuId - 1) % 10) + 2;
 }

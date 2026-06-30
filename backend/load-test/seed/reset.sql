@@ -7,10 +7,11 @@ BEGIN;
 TRUNCATE TABLE payments, order_items, orders, cart_items RESTART IDENTITY CASCADE;
 
 -- 시나리오 D 검증을 위해 상품 10개 모두 재고 1, 비-품절로 리셋
+-- 시드 DB 실제 product_id가 2~20이라 1번이 없음 → 2~11을 대상으로 함 (http.js pickProductIdByVu와 동일 범위)
 UPDATE products
    SET stock_quantity = 1,
        is_soldout = false
- WHERE product_id BETWEEN 1 AND 10;
+ WHERE product_id BETWEEN 2 AND 11;
 
 -- 통계 갱신 (Round 1 인덱스 적용 후 효과 측정 시 필수)
 ANALYZE products;

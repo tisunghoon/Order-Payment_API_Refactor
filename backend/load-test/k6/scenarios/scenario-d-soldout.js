@@ -84,8 +84,12 @@ export default function () {
   const orderId = parseOrderId(orderResp);
   if (!orderId) return;
 
-  // 3) 결제 준비
-  const prepareResp = post('/payments/prepare', accessToken, { orderId });
+  // 3) 결제 준비 — PaymentPrepareRequest는 paymentMethod(@NotNull)가 필수.
+  // 누락 시 400(must not be null)으로 prepare 전량 실패 → 결제/재고차감 0건이 된다.
+  const prepareResp = post('/payments/prepare', accessToken, {
+    orderId,
+    paymentMethod: 'CARD',
+  });
   if (prepareResp.status !== 200 && prepareResp.status !== 201) {
     errorRate.add(1);
     return;

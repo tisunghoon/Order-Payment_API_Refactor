@@ -9,8 +9,11 @@ import { Counter, Rate } from 'k6/metrics';
 
 import { get, post, pickProductIdByVu, BASE_URL } from '../lib/http.js';
 import { tokens } from '../lib/pool.js';
+import { loadtestTags } from '../lib/context.js';
 
 export const options = {
+  // 모든 k6 메트릭에 scenario/round/run_id 라벨 부착 → Grafana myfave-loadtest-rounds 비교용
+  tags: { ...loadtestTags() },
   scenarios: {
     soldout: {
       executor: 'ramping-vus',
@@ -91,9 +94,12 @@ export default function () {
   const paymentId = parsePaymentId(prepareResp);
 
   // 4) 결제 확인
+  // pgTransactionId는 MockPortOnePaymentProvider 규약(MOCK-PAY-{paymentId})을 따라야
+  // mock이 DB에서 실제 주문 금액을 조회 → confirmPayment의 금액 검증을 통과한다.
+  // (임의 문자열이면 mock이 13000원 fallback → 금액 불일치로 결제 전량 실패)
   const confirmResp = post('/payments/confirm', accessToken, {
     paymentId,
-    pgTransactionId: `loadtest-tx-${__VU}-${__ITER}`,
+    pgTransactionId: `MOCK-PAY-${paymentId}`,
   });
   if (confirmResp.status === 200 || confirmResp.status === 201) {
     paymentConfirmed.add(1, { productId: String(productId) });

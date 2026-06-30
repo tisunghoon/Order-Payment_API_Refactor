@@ -7,8 +7,11 @@ import { Trend, Counter } from 'k6/metrics';
 
 import { get, post, pickProductIdByVu, BASE_URL } from '../lib/http.js';
 import { tokens } from '../lib/pool.js';
+import { loadtestTags } from '../lib/context.js';
 
 export const options = {
+  // 모든 k6 메트릭에 scenario/round/run_id 라벨 부착 → Grafana myfave-loadtest-rounds 비교용
+  tags: { ...loadtestTags() },
   scenarios: {
     spike: {
       executor: 'ramping-vus',

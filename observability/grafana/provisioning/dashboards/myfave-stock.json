@@ -75,7 +75,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "sum(increase(myfave_stock_lock_acquire_total{outcome=~\"timeout|interrupted|redis_error\"}[15m]))",
+          "expr": "sum(increase(myfave_stock_lock_acquire_total{outcome=~\"timeout|interrupted|redis_error\"}[15m])) or vector(0)",
           "legendFormat": "15m",
           "range": true,
           "refId": "A"
@@ -249,7 +249,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "sum by (outcome) (rate(myfave_stock_lock_acquire_total{outcome=~\"timeout|interrupted|redis_error\"}[1m]))",
+          "expr": "sum by (outcome) (rate(myfave_stock_lock_acquire_total{outcome=~\"timeout|interrupted|redis_error\"}[1m])) or vector(0)",
           "legendFormat": "{{outcome}}/s",
           "range": true,
           "refId": "A"

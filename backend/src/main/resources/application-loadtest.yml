@@ -56,6 +56,10 @@ spring:
       region:
         static: ap-northeast-2
 
+# KakaoAuthClient가 @Value("${kakao.redirect-uri}")로 참조 — local 프로파일과 동일하게 최상위 키 제공
+kakao:
+  redirect-uri: http://localhost:5173/oauth/kakao/callback
+
 portone:
   api-url: https://api.portone.io
   api-secret: loadtest-portone-api-secret

@@ -75,13 +75,13 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "increase(myfave_stock_deadlock_total[15m])",
+          "expr": "sum(increase(myfave_stock_lock_acquire_total{outcome=~\"timeout|interrupted|redis_error\"}[15m])) or vector(0)",
           "legendFormat": "15m",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Stock Deadlock (15m)",
+      "title": "락 획득 실패 (timeout/redis_error, 15m)",
       "type": "stat"
     },
     {
@@ -249,13 +249,13 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "rate(myfave_stock_deadlock_total[1m])",
-          "legendFormat": "deadlock/s",
+          "expr": "sum by (outcome) (rate(myfave_stock_lock_acquire_total{outcome=~\"timeout|interrupted|redis_error\"}[1m])) or vector(0)",
+          "legendFormat": "{{outcome}}/s",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Stock Deadlock Rate",
+      "title": "락 획득 실패율 (by outcome)",
       "type": "timeseries"
     }
   ],

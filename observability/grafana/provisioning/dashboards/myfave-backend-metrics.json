@@ -412,7 +412,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(http_server_requests_seconds_count{application=\"myfave-api\",status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"myfave-api\"}[1m]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"myfave-api\",status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"myfave-api\"}[1m])) or vector(0)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"

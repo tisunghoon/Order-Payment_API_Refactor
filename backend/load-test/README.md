@@ -49,23 +49,46 @@ k6 run backend/load-test/k6/scenarios/scenario-d-soldout.js
 k6 run backend/load-test/k6/scenarios/scenario-e-chat.js
 ```
 
+## k6 메트릭을 Grafana로 전송 (라운드 비교 대시보드)
+
+Prometheus는 `--web.enable-remote-write-receiver`가 켜져 있어 k6 메트릭을 직접 수신할 수 있다.
+아래처럼 실행하면 `k6_http_*` 지표가 `scenario`/`round` 라벨과 함께 `myfave-loadtest-rounds` 대시보드에 들어온다.
+
+```bash
+export BASE_URL=http://localhost:8080/api/v1
+export K6_PROMETHEUS_RW_SERVER_URL=http://localhost:9090/api/v1/write
+export K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true
+# 라운드/시나리오 라벨 — k6 메트릭 태그(loadtestTags) + HTTP 헤더(loadtestHeaders→백엔드 MDC)에 동시 부착
+export LOADTEST_SCENARIO=D        # A | D | E
+export LOADTEST_ROUND=0           # 0 | 1 | 2 | 3
+export LOADTEST_RUN_ID="$(date -u +%FT%H%M)-D-r0"
+
+k6 run --out experimental-prometheus-rw \
+  backend/load-test/k6/scenarios/scenario-d-soldout.js
+```
+
+> `LOADTEST_*`를 비우면 라벨 없이 동작(`k6 run` 단독과 동일). Grafana `$scenario`/`$round` 변수를 채우려면 위 env가 필요하다.
+> 분산락 검증 지표 해석은 `MyFave/Talk with AI/k6-분산락-검증-모니터링-지표-가이드.md` 참고.
+
 ## 시나리오 D 후처리 검증
 
 ```sql
 -- PAID 카운트 (기대: 10)
+-- 주의: order_items/orders의 PK·FK 컬럼명은 orders_id (order_id 아님)
+-- 시드 DB 실제 상품 product_id는 2~11 (1번은 없음)
 SELECT COUNT(*) FROM order_items oi
-  JOIN orders o ON oi.order_id = o.order_id
+  JOIN orders o ON oi.orders_id = o.orders_id
  WHERE o.order_status = 'PAID';
 
 -- 재고 0 확인
 SELECT product_id, stock_quantity, is_soldout
-  FROM products WHERE product_id BETWEEN 1 AND 10;
+  FROM products WHERE product_id BETWEEN 2 AND 11;
 
 -- 동일 상품 over-selling 검출 (기대: 0행)
-SELECT product_id, COUNT(*)
-  FROM order_items oi JOIN orders o ON oi.order_id = o.order_id
+SELECT oi.product_id, COUNT(*)
+  FROM order_items oi JOIN orders o ON oi.orders_id = o.orders_id
  WHERE o.order_status = 'PAID'
- GROUP BY product_id HAVING COUNT(*) > 1;
+ GROUP BY oi.product_id HAVING COUNT(*) > 1;
 ```
 
 ## 결과 기록 표

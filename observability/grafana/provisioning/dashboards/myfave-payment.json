@@ -116,7 +116,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "increase(myfave_payment_amount_mismatch_total[1h])",
+          "expr": "increase(myfave_payment_amount_mismatch_total[1h]) or vector(0)",
           "legendFormat": "1h",
           "range": true,
           "refId": "A"
@@ -203,7 +203,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "rate(myfave_payment_stock_deduct_failed_total[1m])",
+          "expr": "rate(myfave_payment_stock_deduct_failed_total[1m]) or vector(0)",
           "legendFormat": "stock.deduct.failed",
           "range": true,
           "refId": "A"
@@ -211,7 +211,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "rate(myfave_payment_pg_auto_refund_total[1m])",
+          "expr": "rate(myfave_payment_pg_auto_refund_total[1m]) or vector(0)",
           "legendFormat": "pg.auto.refund {{outcome}}",
           "range": true,
           "refId": "B"
@@ -219,7 +219,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "rate(myfave_payment_stock_restore_failed_total[1m])",
+          "expr": "rate(myfave_payment_stock_restore_failed_total[1m]) or vector(0)",
           "legendFormat": "stock.restore.failed",
           "range": true,
           "refId": "C"
@@ -227,7 +227,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "rate(myfave_payment_compensation_persist_failed_total[1m])",
+          "expr": "rate(myfave_payment_compensation_persist_failed_total[1m]) or vector(0)",
           "legendFormat": "compensation.persist.failed",
           "range": true,
           "refId": "D"
@@ -256,7 +256,7 @@
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
           "editorMode": "code",
-          "expr": "sum by (api, status_class) (rate(myfave_portone_http_errors_total[1m]))",
+          "expr": "sum by (api, status_class) (rate(myfave_portone_http_errors_total[1m])) or vector(0)",
           "legendFormat": "{{api}} {{status_class}}",
           "range": true,
           "refId": "A"

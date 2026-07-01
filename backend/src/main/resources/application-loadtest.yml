@@ -56,6 +56,10 @@ spring:
       region:
         static: ap-northeast-2
 
+# KakaoAuthClient가 @Value("${kakao.redirect-uri}")로 참조 — local 프로파일과 동일하게 최상위 키 제공
+kakao:
+  redirect-uri: http://localhost:5173/oauth/kakao/callback
+
 portone:
   api-url: https://api.portone.io
   api-secret: loadtest-portone-api-secret
@@ -94,7 +98,7 @@ management:
         include: health, prometheus, metrics
   metrics:
     tags:
-      application: myfave-api-loadtest
+      application: myfave-api
 
 # Hibernate slow query 로깅 — Round별 비교 + slow query 분포 측정
 logging:

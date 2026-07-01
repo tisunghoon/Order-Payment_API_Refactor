@@ -15,6 +15,7 @@ import { Counter, Trend } from 'k6/metrics';
 
 import { connect, subscribe, send, disconnect, frameCommand } from '../lib/stomp.js';
 import { tokens } from '../lib/pool.js';
+import { loadtestTags } from '../lib/context.js';
 
 const WS_BASE = __ENV.WS_URL || 'ws://localhost:8080/ws';
 const ROOM_ID = __ENV.ROOM_ID || '1';
@@ -27,6 +28,8 @@ function sockJsWsUrl(base) {
 const SESSION_DURATION_MS = 4 * 60 * 1000 + 30 * 1000; // 4분 30초
 
 export const options = {
+  // 모든 k6 메트릭에 scenario/round/run_id 라벨 부착 → Grafana myfave-loadtest-rounds 비교용
+  tags: { ...loadtestTags() },
   scenarios: {
     chat: {
       executor: 'ramping-vus',

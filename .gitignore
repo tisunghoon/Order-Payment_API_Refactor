@@ -37,3 +37,6 @@ backend/run.bat
 AGENTS.md
 .DS_Store
 .omc/
+
+# OMC(oh-my-claudecode) 상태 파일
+.omo/
